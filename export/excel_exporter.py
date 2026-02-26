@@ -9,7 +9,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 
-from core.models import WeekSchedule, DaySchedule, Assignment, EmployeeAvailability
+from core.models import MonthSchedule, DaySchedule, Assignment, EmployeeAvailability
 from core.constants import CATEGORIES, CATEGORY_COVERAGE
 from core.utils import generate_time_blocks, is_weekend
 from engine.weekend_tracker import WeekendTracker
@@ -23,14 +23,14 @@ class ExcelExporter:
 
     def export_schedule(
         self,
-        week_schedule: WeekSchedule,
+        month_schedule: MonthSchedule,
         output_path: str
     ) -> str:
         """
-        Export week schedule to Excel.
+        Export month schedule to Excel.
 
         Args:
-            week_schedule: Schedule to export
+            month_schedule: Schedule to export
             output_path: Path to save Excel file
 
         Returns:
@@ -43,18 +43,18 @@ class ExcelExporter:
             wb.remove(wb["Sheet"])
 
         # Tab 1: WorkHours
-        self._create_workhours_tab(wb, week_schedule)
+        self._create_workhours_tab(wb, month_schedule)
 
         # Tab 2: WeekdaysGrid
-        self._create_weekdays_grid_tab(wb, week_schedule)
+        self._create_weekdays_grid_tab(wb, month_schedule)
 
         # Tab 3: WeekendGrid
-        self._create_weekend_grid_tab(wb, week_schedule)
+        self._create_weekend_grid_tab(wb, month_schedule)
 
         wb.save(output_path)
         return output_path
 
-    def _create_workhours_tab(self, wb: Workbook, week_schedule: WeekSchedule):
+    def _create_workhours_tab(self, wb: Workbook, month_schedule: MonthSchedule):
         """Create WorkHours tab."""
         ws = wb.create_sheet("WorkHours")
 
@@ -69,7 +69,7 @@ class ExcelExporter:
             cell.font = Font(bold=True, color="FFFFFF")
 
         # Data rows
-        for day_schedule in week_schedule.days:
+        for day_schedule in month_schedule.days:
             for avail in day_schedule.availability:
                 # Get actual start/end times
                 from core.constants import EMPLOYEE_DEFAULT_HOURS
@@ -101,13 +101,13 @@ class ExcelExporter:
                     max_length = max(max_length, len(str(cell.value)))
             ws.column_dimensions[column_letter].width = max_length + 2
 
-    def _create_weekdays_grid_tab(self, wb: Workbook, week_schedule: WeekSchedule):
+    def _create_weekdays_grid_tab(self, wb: Workbook, month_schedule: MonthSchedule):
         """Create WeekdaysGrid tab."""
         ws = wb.create_sheet("WeekdaysGrid")
 
         # Get weekday schedules only
         weekday_schedules = [
-            day for day in week_schedule.days
+            day for day in month_schedule.days
             if not is_weekend(day.date)
         ]
 
@@ -171,13 +171,13 @@ class ExcelExporter:
             ws.append([])
             ws.append([])
 
-    def _create_weekend_grid_tab(self, wb: Workbook, week_schedule: WeekSchedule):
+    def _create_weekend_grid_tab(self, wb: Workbook, month_schedule: MonthSchedule):
         """Create WeekendGrid tab."""
         ws = wb.create_sheet("WeekendGrid")
 
         # Get weekend schedules only
         weekend_schedules = [
-            day for day in week_schedule.days
+            day for day in month_schedule.days
             if is_weekend(day.date)
         ]
 
@@ -226,8 +226,8 @@ class ExcelExporter:
         ws[ws.max_row][0].font = Font(bold=True, size=14)
         ws.append([])
 
-        # Get month from week start
-        month = week_schedule.week_start
+        # Get month from schedule start
+        month = month_schedule.month_start
         summary = self.weekend_tracker.get_weekend_summary(month)
 
         # Headers

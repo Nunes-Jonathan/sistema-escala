@@ -166,10 +166,7 @@ def main():
                     output_path = Path(temp_dir) / f"schedule_{month_start.strftime('%Y%m')}.xlsx"
 
                     exporter = ExcelExporter(st.session_state.scheduler.weekend_tracker)
-                    # Convert MonthSchedule to WeekSchedule for export (temporary compatibility)
-                    from core.models import WeekSchedule
-                    temp_week = WeekSchedule(week_start=month_start, days=st.session_state.month_schedule.days[:7])
-                    exporter.export_schedule(temp_week, str(output_path))
+                    exporter.export_schedule(st.session_state.month_schedule, str(output_path))
 
                     with open(output_path, "rb") as f:
                         st.download_button(
@@ -191,10 +188,7 @@ def main():
                     temp_dir = tempfile.mkdtemp()
 
                     exporter = CSVExporter(st.session_state.scheduler.weekend_tracker)
-                    # Convert MonthSchedule to WeekSchedule for export (temporary compatibility)
-                    from core.models import WeekSchedule
-                    temp_week = WeekSchedule(week_start=month_start, days=st.session_state.month_schedule.days[:7])
-                    zip_path = exporter.export_schedule(temp_week, temp_dir)
+                    zip_path = exporter.export_schedule(st.session_state.month_schedule, temp_dir)
 
                     with open(zip_path, "rb") as f:
                         st.download_button(

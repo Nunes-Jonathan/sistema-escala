@@ -6,7 +6,7 @@ from datetime import time
 from pathlib import Path
 from typing import List, Dict
 
-from core.models import WeekSchedule, DaySchedule
+from core.models import MonthSchedule, DaySchedule
 from core.constants import CATEGORIES, CATEGORY_COVERAGE, EMPLOYEE_DEFAULT_HOURS
 from core.utils import generate_time_blocks, is_weekend
 from engine.weekend_tracker import WeekendTracker
@@ -20,14 +20,14 @@ class CSVExporter:
 
     def export_schedule(
         self,
-        week_schedule: WeekSchedule,
+        month_schedule: MonthSchedule,
         output_dir: str
     ) -> str:
         """
-        Export week schedule to CSV files (zipped).
+        Export month schedule to CSV files (zipped).
 
         Args:
-            week_schedule: Schedule to export
+            month_schedule: Schedule to export
             output_dir: Directory to save CSV files
 
         Returns:
@@ -41,12 +41,12 @@ class CSVExporter:
         weekdays_path = output_path / "weekdays_grid.csv"
         weekend_path = output_path / "weekend_grid.csv"
 
-        self._export_workhours(week_schedule, str(workhours_path))
-        self._export_weekdays_grid(week_schedule, str(weekdays_path))
-        self._export_weekend_grid(week_schedule, str(weekend_path))
+        self._export_workhours(month_schedule, str(workhours_path))
+        self._export_weekdays_grid(month_schedule, str(weekdays_path))
+        self._export_weekend_grid(month_schedule, str(weekend_path))
 
         # Create zip file
-        zip_path = output_path / f"schedule_{week_schedule.week_start.strftime('%Y%m%d')}.zip"
+        zip_path = output_path / f"schedule_{month_schedule.month_start.strftime('%Y%m%d')}.zip"
 
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             zipf.write(workhours_path, "workhours.csv")
@@ -60,11 +60,11 @@ class CSVExporter:
 
         return str(zip_path)
 
-    def _export_workhours(self, week_schedule: WeekSchedule, output_path: str):
+    def _export_workhours(self, month_schedule: MonthSchedule, output_path: str):
         """Export WorkHours data to CSV."""
         rows = []
 
-        for day_schedule in week_schedule.days:
+        for day_schedule in month_schedule.days:
             for avail in day_schedule.availability:
                 # Get actual times
                 default_start, default_end = EMPLOYEE_DEFAULT_HOURS.get(
@@ -88,13 +88,13 @@ class CSVExporter:
         df = pd.DataFrame(rows)
         df.to_csv(output_path, index=False)
 
-    def _export_weekdays_grid(self, week_schedule: WeekSchedule, output_path: str):
+    def _export_weekdays_grid(self, month_schedule: MonthSchedule, output_path: str):
         """Export WeekdaysGrid data to CSV."""
         rows = []
 
         # Get weekday schedules
         weekday_schedules = [
-            day for day in week_schedule.days
+            day for day in month_schedule.days
             if not is_weekend(day.date)
         ]
 
@@ -125,13 +125,13 @@ class CSVExporter:
         df = pd.DataFrame(rows)
         df.to_csv(output_path, index=False)
 
-    def _export_weekend_grid(self, week_schedule: WeekSchedule, output_path: str):
+    def _export_weekend_grid(self, month_schedule: MonthSchedule, output_path: str):
         """Export WeekendGrid data to CSV."""
         rows = []
 
         # Get weekend schedules
         weekend_schedules = [
-            day for day in week_schedule.days
+            day for day in month_schedule.days
             if is_weekend(day.date)
         ]
 
@@ -161,7 +161,7 @@ class CSVExporter:
                 rows.append(row)
 
         # Weekend summary data
-        month = week_schedule.week_start
+        month = month_schedule.month_start
         summary = self.weekend_tracker.get_weekend_summary(month)
 
         rows.append({})  # Empty row separator
