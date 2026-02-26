@@ -8,6 +8,7 @@ from pathlib import Path
 
 from core.models import VacationPeriod
 from tests.demo_scenarios import create_employees
+from core.constants import WEEKEND_NEVER_WORK
 
 # Page configuration
 st.set_page_config(
@@ -67,6 +68,48 @@ def load_vacations_from_file():
     return vacation_periods
 
 
+def get_weekend_days_in_vacation(vp: VacationPeriod) -> list:
+    """Return all Sat/Sun dates that fall within a vacation period."""
+    days = []
+    current = vp.start_date
+    while current <= vp.end_date:
+        if current.weekday() in (5, 6):
+            days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
+def analyze_weekend_impact(vacation: VacationPeriod, all_vacations: list) -> dict:
+    """
+    Check how a vacation affects weekend coverage.
+
+    Returns a dict with:
+      - weekend_days: list of Sat/Sun inside the vacation
+      - works_weekends: whether this employee is part of the weekend crew
+      - conflicting: dict mapping each weekend day to list of other absent weekend-crew employees
+    """
+    weekend_days = get_weekend_days_in_vacation(vacation)
+    works_weekends = vacation.employee_name not in WEEKEND_NEVER_WORK
+
+    conflicting = {}
+    if works_weekends:
+        for day in weekend_days:
+            others = [
+                v.employee_name
+                for v in all_vacations
+                if v.employee_name != vacation.employee_name
+                and v.employee_name not in WEEKEND_NEVER_WORK
+                and v.contains_date(day)
+            ]
+            conflicting[day] = others
+
+    return {
+        "weekend_days": weekend_days,
+        "works_weekends": works_weekends,
+        "conflicting": conflicting,
+    }
+
+
 # Main content
 st.title("🏖️ Vacation Management")
 st.markdown("Manage employee vacation periods for schedule generation")
@@ -96,7 +139,7 @@ with st.form("add_vacation"):
     with col3:
         end_date = st.date_input(
             "End Date",
-            value=date.today() + timedelta(days=7),
+            value=max(start_date, date.today()) + timedelta(days=7),
             min_value=start_date,
             key="new_vacation_end"
         )
@@ -177,6 +220,51 @@ if st.session_state.vacation_periods:
 
 else:
     st.info("No vacation periods added yet. Use the form above to add vacations.")
+
+st.markdown("---")
+
+# Weekend Impact Analysis
+st.subheader("📅 Weekend Impact Analysis")
+
+if st.session_state.vacation_periods:
+    # Total weekend-crew size (employees who work weekends)
+    all_employees = create_employees()
+    weekend_crew = [e.name for e in all_employees if e.name not in WEEKEND_NEVER_WORK]
+    weekend_crew_size = len(weekend_crew)
+
+    for vp in st.session_state.vacation_periods:
+        impact = analyze_weekend_impact(vp, st.session_state.vacation_periods)
+
+        with st.expander(
+            f"{vp.employee_name}  |  {vp.start_date} → {vp.end_date}",
+            expanded=True,
+        ):
+            if not impact["weekend_days"]:
+                st.success("No weekend days in this vacation — no weekend coverage impact.")
+            elif not impact["works_weekends"]:
+                st.success(
+                    f"{vp.employee_name} does not work weekends, so this vacation "
+                    "has no effect on weekend coverage."
+                )
+            else:
+                for day in impact["weekend_days"]:
+                    day_name = day.strftime("%A %d/%m/%Y")
+                    others_off = impact["conflicting"][day]
+                    # available = crew minus this employee minus anyone else on vacation
+                    available = weekend_crew_size - 1 - len(others_off)
+
+                    if others_off:
+                        st.warning(
+                            f"**{day_name}** — {available}/{weekend_crew_size} weekend crew "
+                            f"available. Also absent: {', '.join(others_off)}."
+                        )
+                    else:
+                        st.info(
+                            f"**{day_name}** — {available}/{weekend_crew_size} weekend crew "
+                            "available. No other conflicts."
+                        )
+else:
+    st.info("Add vacation periods above to see weekend impact.")
 
 st.markdown("---")
 
