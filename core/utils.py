@@ -1,8 +1,11 @@
 """Utility functions for the scheduling system."""
+from __future__ import annotations
 
 from datetime import date, time, datetime, timedelta
-from typing import List, Tuple
-from core.models import TimeBlock
+from typing import List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.models import TimeBlock
 
 
 MESES_PT = {
@@ -38,6 +41,7 @@ def generate_time_blocks(
     Returns:
         List of TimeBlock objects
     """
+    from core.models import TimeBlock  # lazy import to avoid circular/premature load
     blocks = []
     current = datetime.combine(date.today(), time(start_hour, 0))
     end_time = datetime.combine(date.today(), time(0, 0)) if end_hour == 24 else datetime.combine(date.today(), time(end_hour, 0))
@@ -107,6 +111,7 @@ def get_employee_working_blocks(
     Returns:
         List of TimeBlock objects covering working hours
     """
+    from core.models import TimeBlock  # lazy import to avoid circular/premature load
     blocks = []
     current = datetime.combine(date.today(), start_time)
     end = datetime.combine(date.today(), end_time)
