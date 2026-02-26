@@ -1,4 +1,4 @@
-"""Vacation Management Page for Sistema de Escala."""
+"""Página de Gestão de Férias - Sistema de Escala."""
 
 import streamlit as st
 import pandas as pd
@@ -12,7 +12,7 @@ from core.constants import WEEKEND_NEVER_WORK
 
 # Page configuration
 st.set_page_config(
-    page_title="Vacation Management - Sistema de Escala",
+    page_title="Gestão de Férias - Sistema de Escala",
     page_icon="🏖️",
     layout="wide"
 )
@@ -27,7 +27,7 @@ st.session_state.employee_names = [emp.name for emp in employees]
 
 
 def save_vacations_to_file():
-    """Save vacation periods to JSON file."""
+    """Salva os períodos de férias em arquivo JSON."""
     data = [
         {
             "employee_name": vp.employee_name,
@@ -46,7 +46,7 @@ def save_vacations_to_file():
 
 
 def load_vacations_from_file():
-    """Load vacation periods from JSON file."""
+    """Carrega os períodos de férias do arquivo JSON."""
     load_path = Path("vacation_data.json")
 
     if not load_path.exists():
@@ -69,7 +69,7 @@ def load_vacations_from_file():
 
 
 def get_weekend_days_in_vacation(vp: VacationPeriod) -> list:
-    """Return all Sat/Sun dates that fall within a vacation period."""
+    """Retorna todos os sábados e domingos dentro de um período de férias."""
     days = []
     current = vp.start_date
     while current <= vp.end_date:
@@ -81,12 +81,13 @@ def get_weekend_days_in_vacation(vp: VacationPeriod) -> list:
 
 def analyze_weekend_impact(vacation: VacationPeriod, all_vacations: list) -> dict:
     """
-    Check how a vacation affects weekend coverage.
+    Verifica o impacto das férias na cobertura dos fins de semana.
 
-    Returns a dict with:
-      - weekend_days: list of Sat/Sun inside the vacation
-      - works_weekends: whether this employee is part of the weekend crew
-      - conflicting: dict mapping each weekend day to list of other absent weekend-crew employees
+    Retorna um dict com:
+      - weekend_days: lista de sáb/dom dentro das férias
+      - works_weekends: se o funcionário faz parte da equipe de fim de semana
+      - conflicting: dict mapeando cada dia de fim de semana para lista de outros
+                     funcionários da equipe também ausentes
     """
     weekend_days = get_weekend_days_in_vacation(vacation)
     works_weekends = vacation.employee_name not in WEEKEND_NEVER_WORK
@@ -111,54 +112,51 @@ def analyze_weekend_impact(vacation: VacationPeriod, all_vacations: list) -> dic
 
 
 # Main content
-st.title("🏖️ Vacation Management")
-st.markdown("Manage employee vacation periods for schedule generation")
+st.title("🏖️ Gestão de Férias")
+st.markdown("Gerencie os períodos de férias dos funcionários para geração da escala")
 
 st.markdown("---")
 
 # Add new vacation period
-st.subheader("➕ Add Vacation Period")
+st.subheader("➕ Adicionar Período de Férias")
 
 with st.form("add_vacation"):
     col1, col2, col3 = st.columns([2, 2, 2])
 
     with col1:
         employee = st.selectbox(
-            "Employee",
+            "Funcionário",
             options=st.session_state.employee_names,
             key="new_vacation_employee"
         )
 
     with col2:
         start_date = st.date_input(
-            "Start Date",
+            "Data de Início",
             value=date.today(),
             key="new_vacation_start"
         )
 
     with col3:
         end_date = st.date_input(
-            "End Date",
+            "Data de Término",
             value=max(start_date, date.today()) + timedelta(days=7),
             min_value=start_date,
             key="new_vacation_end"
         )
 
     notes = st.text_input(
-        "Notes (optional)",
-        placeholder="e.g., Family vacation, Medical leave, etc.",
+        "Observações (opcional)",
+        placeholder="ex.: Férias em família, Licença médica, etc.",
         key="new_vacation_notes"
     )
 
-    # Submit button (must be inside form)
-    submitted = st.form_submit_button("Add Vacation", type="primary", use_container_width=False)
+    submitted = st.form_submit_button("Adicionar Férias", type="primary", use_container_width=False)
 
     if submitted:
-        # Validate dates
         if end_date < start_date:
-            st.error("End date must be after or equal to start date!")
+            st.error("A data de término deve ser igual ou posterior à data de início!")
         else:
-            # Create vacation period
             new_vacation = VacationPeriod(
                 employee_name=employee,
                 start_date=start_date,
@@ -167,16 +165,18 @@ with st.form("add_vacation"):
             )
 
             st.session_state.vacation_periods.append(new_vacation)
-            st.success(f"✅ Added vacation for {employee} ({start_date} to {end_date})")
+            st.success(
+                f"✅ Férias adicionadas para {employee} "
+                f"({start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')})"
+            )
             st.rerun()
 
 st.markdown("---")
 
 # Display existing vacations
-st.subheader("📋 Current Vacation Periods")
+st.subheader("📋 Períodos de Férias Atuais")
 
 if st.session_state.vacation_periods:
-    # Create table data
     vacation_data = []
 
     for i, vp in enumerate(st.session_state.vacation_periods):
@@ -184,16 +184,15 @@ if st.session_state.vacation_periods:
 
         vacation_data.append({
             "ID": i,
-            "Employee": vp.employee_name,
-            "Start Date": vp.start_date.strftime("%Y-%m-%d"),
-            "End Date": vp.end_date.strftime("%Y-%m-%d"),
-            "Duration (days)": duration,
-            "Notes": vp.notes or "-"
+            "Funcionário": vp.employee_name,
+            "Data de Início": vp.start_date.strftime("%d/%m/%Y"),
+            "Data de Término": vp.end_date.strftime("%d/%m/%Y"),
+            "Duração (dias)": duration,
+            "Observações": vp.notes or "-"
         })
 
     df = pd.DataFrame(vacation_data)
 
-    # Display table
     st.dataframe(
         df.drop(columns=["ID"]),
         use_container_width=True,
@@ -201,33 +200,36 @@ if st.session_state.vacation_periods:
     )
 
     # Delete vacation section
-    st.subheader("🗑️ Remove Vacation")
+    st.subheader("🗑️ Remover Férias")
 
     col1, col2 = st.columns([2, 4])
 
     with col1:
         vacation_to_delete = st.selectbox(
-            "Select vacation to remove",
+            "Selecionar férias para remover",
             options=range(len(st.session_state.vacation_periods)),
-            format_func=lambda i: f"{st.session_state.vacation_periods[i].employee_name} ({st.session_state.vacation_periods[i].start_date} to {st.session_state.vacation_periods[i].end_date})"
+            format_func=lambda i: (
+                f"{st.session_state.vacation_periods[i].employee_name} "
+                f"({st.session_state.vacation_periods[i].start_date.strftime('%d/%m/%Y')} "
+                f"a {st.session_state.vacation_periods[i].end_date.strftime('%d/%m/%Y')})"
+            )
         )
 
     with col2:
-        if st.button("🗑️ Remove Selected Vacation", type="secondary"):
+        if st.button("🗑️ Remover Férias Selecionadas", type="secondary"):
             removed = st.session_state.vacation_periods.pop(vacation_to_delete)
-            st.success(f"Removed vacation for {removed.employee_name}")
+            st.success(f"Férias de {removed.employee_name} removidas")
             st.rerun()
 
 else:
-    st.info("No vacation periods added yet. Use the form above to add vacations.")
+    st.info("Nenhum período de férias adicionado. Use o formulário acima para adicionar férias.")
 
 st.markdown("---")
 
 # Weekend Impact Analysis
-st.subheader("📅 Weekend Impact Analysis")
+st.subheader("📅 Análise de Impacto nos Fins de Semana")
 
 if st.session_state.vacation_periods:
-    # Total weekend-crew size (employees who work weekends)
     all_employees = create_employees()
     weekend_crew = [e.name for e in all_employees if e.name not in WEEKEND_NEVER_WORK]
     weekend_crew_size = len(weekend_crew)
@@ -236,77 +238,75 @@ if st.session_state.vacation_periods:
         impact = analyze_weekend_impact(vp, st.session_state.vacation_periods)
 
         with st.expander(
-            f"{vp.employee_name}  |  {vp.start_date} → {vp.end_date}",
+            f"{vp.employee_name}  |  {vp.start_date.strftime('%d/%m/%Y')} → {vp.end_date.strftime('%d/%m/%Y')}",
             expanded=True,
         ):
             if not impact["weekend_days"]:
-                st.success("No weekend days in this vacation — no weekend coverage impact.")
+                st.success("Nenhum dia de fim de semana nessas férias — sem impacto na cobertura.")
             elif not impact["works_weekends"]:
                 st.success(
-                    f"{vp.employee_name} does not work weekends, so this vacation "
-                    "has no effect on weekend coverage."
+                    f"{vp.employee_name} não trabalha nos fins de semana, portanto essas férias "
+                    "não afetam a cobertura dos fins de semana."
                 )
             else:
                 for day in impact["weekend_days"]:
                     day_name = day.strftime("%A %d/%m/%Y")
                     others_off = impact["conflicting"][day]
-                    # available = crew minus this employee minus anyone else on vacation
                     available = weekend_crew_size - 1 - len(others_off)
 
                     if others_off:
                         st.warning(
-                            f"**{day_name}** — {available}/{weekend_crew_size} weekend crew "
-                            f"available. Also absent: {', '.join(others_off)}."
+                            f"**{day_name}** — {available}/{weekend_crew_size} da equipe de fim de semana "
+                            f"disponível. Também ausente(s): {', '.join(others_off)}."
                         )
                     else:
                         st.info(
-                            f"**{day_name}** — {available}/{weekend_crew_size} weekend crew "
-                            "available. No other conflicts."
+                            f"**{day_name}** — {available}/{weekend_crew_size} da equipe de fim de semana "
+                            "disponível. Sem outros conflitos."
                         )
 else:
-    st.info("Add vacation periods above to see weekend impact.")
+    st.info("Adicione períodos de férias acima para ver o impacto nos fins de semana.")
 
 st.markdown("---")
 
 # Save/Load section
-st.subheader("💾 Save/Load Vacation Data")
+st.subheader("💾 Salvar/Carregar Dados de Férias")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("💾 Save to File", use_container_width=True):
+    if st.button("💾 Salvar em Arquivo", use_container_width=True):
         if st.session_state.vacation_periods:
             save_path = save_vacations_to_file()
-            st.success(f"Saved {len(st.session_state.vacation_periods)} vacation periods to {save_path}")
+            st.success(f"{len(st.session_state.vacation_periods)} período(s) de férias salvos em {save_path}")
         else:
-            st.warning("No vacation periods to save")
+            st.warning("Nenhum período de férias para salvar")
 
 with col2:
-    if st.button("📂 Load from File", use_container_width=True):
+    if st.button("📂 Carregar do Arquivo", use_container_width=True):
         loaded_vacations = load_vacations_from_file()
         if loaded_vacations:
             st.session_state.vacation_periods = loaded_vacations
-            st.success(f"Loaded {len(loaded_vacations)} vacation periods")
+            st.success(f"{len(loaded_vacations)} período(s) de férias carregados")
             st.rerun()
         else:
-            st.info("No vacation data file found")
+            st.info("Nenhum arquivo de férias encontrado")
 
 with col3:
-    if st.button("🗑️ Clear All", use_container_width=True):
+    if st.button("🗑️ Limpar Tudo", use_container_width=True):
         if st.session_state.vacation_periods:
             count = len(st.session_state.vacation_periods)
             st.session_state.vacation_periods = []
-            st.success(f"Cleared {count} vacation periods")
+            st.success(f"{count} período(s) de férias removidos")
             st.rerun()
         else:
-            st.info("No vacations to clear")
+            st.info("Nenhuma férias para limpar")
 
 # Summary statistics
 if st.session_state.vacation_periods:
     st.markdown("---")
-    st.subheader("📊 Summary Statistics")
+    st.subheader("📊 Estatísticas Resumidas")
 
-    # Count by employee
     employee_counts = {}
     total_days = {}
 
@@ -317,9 +317,9 @@ if st.session_state.vacation_periods:
 
     summary_data = [
         {
-            "Employee": emp,
-            "Vacation Periods": count,
-            "Total Days": total_days[emp]
+            "Funcionário": emp,
+            "Períodos de Férias": count,
+            "Total de Dias": total_days[emp]
         }
         for emp, count in employee_counts.items()
     ]
@@ -328,41 +328,41 @@ if st.session_state.vacation_periods:
     st.dataframe(summary_df, hide_index=True, use_container_width=True)
 
 # Instructions
-with st.expander("ℹ️ How to Use"):
+with st.expander("ℹ️ Como Usar"):
     st.markdown("""
-    ### Adding Vacations
+    ### Adicionando Férias
 
-    1. Select an employee from the dropdown
-    2. Choose start and end dates
-    3. Optionally add notes
-    4. Click "Add Vacation"
+    1. Selecione um funcionário no menu suspenso
+    2. Escolha as datas de início e término
+    3. Adicione observações opcionais
+    4. Clique em "Adicionar Férias"
 
-    ### Managing Vacations
+    ### Gerenciando Férias
 
-    - View all current vacation periods in the table
-    - Remove individual vacations using the removal section
-    - Clear all vacations at once
+    - Visualize todos os períodos de férias atuais na tabela
+    - Remova férias individualmente na seção de remoção
+    - Limpe todas as férias de uma vez
 
-    ### Saving/Loading
+    ### Salvando/Carregando
 
-    - **Save to File**: Saves current vacation periods to `vacation_data.json`
-    - **Load from File**: Loads vacation periods from `vacation_data.json`
-    - **Clear All**: Removes all vacation periods from memory
+    - **Salvar em Arquivo**: Salva os períodos de férias atuais em `vacation_data.json`
+    - **Carregar do Arquivo**: Carrega os períodos de férias de `vacation_data.json`
+    - **Limpar Tudo**: Remove todos os períodos de férias da memória
 
-    ### Using Vacations in Schedules
+    ### Usando Férias nas Escalas
 
-    - Vacation periods are automatically applied when generating monthly schedules
-    - Employees on vacation will be marked as "Vacation" status
-    - The system will adjust other employees' hours to cover gaps
+    - Os períodos de férias são aplicados automaticamente ao gerar escalas mensais
+    - Funcionários em férias serão marcados com status "Vacation"
+    - O sistema ajustará as horas dos outros funcionários para cobrir as lacunas
 
-    **Note**: Vacation data is saved in the current directory as `vacation_data.json`
+    **Observação**: Os dados de férias são salvos no diretório atual como `vacation_data.json`
     """)
 
 # Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>"
-    "Sistema de Escala v2.0 | Vacation Management"
+    "Sistema de Escala v2.0 | Gestão de Férias"
     "</div>",
     unsafe_allow_html=True
 )

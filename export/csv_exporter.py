@@ -76,13 +76,13 @@ class CSVExporter:
                 end_time = avail.end_time or default_end
 
                 rows.append({
-                    "Date": day_schedule.date.strftime("%Y-%m-%d"),
-                    "DayOfWeek": day_schedule.day_of_week,
-                    "Employee": avail.employee_name,
+                    "Data": day_schedule.date.strftime("%d/%m/%Y"),
+                    "Dia da Semana": day_schedule.day_of_week,
+                    "Funcionário": avail.employee_name,
                     "Status": avail.status,
-                    "StartTime": start_time.strftime("%H:%M"),
-                    "EndTime": end_time.strftime("%H:%M"),
-                    "Notes": avail.notes
+                    "Entrada": start_time.strftime("%H:%M"),
+                    "Saída": end_time.strftime("%H:%M"),
+                    "Observações": avail.notes
                 })
 
         df = pd.DataFrame(rows)
@@ -103,9 +103,9 @@ class CSVExporter:
         for day_schedule in weekday_schedules:
             for block in time_blocks:
                 row = {
-                    "Date": day_schedule.date.strftime("%Y-%m-%d"),
-                    "DayOfWeek": day_schedule.day_of_week,
-                    "TimeBlock": str(block)
+                    "Data": day_schedule.date.strftime("%d/%m/%Y"),
+                    "Dia da Semana": day_schedule.day_of_week,
+                    "Bloco de Tempo": str(block)
                 }
 
                 for category in CATEGORIES:
@@ -141,9 +141,9 @@ class CSVExporter:
         for day_schedule in weekend_schedules:
             for block in time_blocks:
                 row = {
-                    "Date": day_schedule.date.strftime("%Y-%m-%d"),
-                    "DayOfWeek": day_schedule.day_of_week,
-                    "TimeBlock": str(block)
+                    "Data": day_schedule.date.strftime("%d/%m/%Y"),
+                    "Dia da Semana": day_schedule.day_of_week,
+                    "Bloco de Tempo": str(block)
                 }
 
                 for category in CATEGORIES:
@@ -165,17 +165,17 @@ class CSVExporter:
         summary = self.weekend_tracker.get_weekend_summary(month)
 
         rows.append({})  # Empty row separator
-        rows.append({"Date": "Weekend Work Summary"})
+        rows.append({"Data": "Resumo de Fins de Semana"})
         rows.append({})
 
         for employee, tracking in sorted(summary.items()):
             rows.append({
-                "Date": employee,
-                "DayOfWeek": f"Off: {tracking.weekends_off}",
-                "TimeBlock": f"Sat: {tracking.weekends_worked_saturday}",
-                "Salas": f"Sun: {tracking.weekends_worked_sunday}",
+                "Data": employee,
+                "Dia da Semana": f"Folga: {tracking.weekends_off}",
+                "Bloco de Tempo": f"Sáb: {tracking.weekends_worked_saturday}",
+                "Salas": f"Dom: {tracking.weekends_worked_sunday}",
                 "Helpdesk": f"Total: {tracking.total_weekends_worked}",
-                "Tech": "Compliant" if tracking.is_compliant else "Non-Compliant"
+                "Tech": "Conforme" if tracking.is_compliant else "Não Conforme"
             })
 
         df = pd.DataFrame(rows)

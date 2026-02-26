@@ -10,19 +10,11 @@ from core.models import EmployeeAvailability, WorkStatus
 def render_sidebar(employee_names: List[str]) -> Tuple[date, Dict[str, dict]]:
     """
     Render sidebar with week selection and configuration.
-
-    Args:
-        employee_names: List of employee names
-
-    Returns:
-        Tuple of (week_start_date, settings_dict)
     """
-    st.sidebar.title("Schedule Configuration")
+    st.sidebar.title("Configuração da Escala")
 
-    # Week selection
-    st.sidebar.subheader("Week Selection")
+    st.sidebar.subheader("Seleção da Semana")
 
-    # Find next Monday
     today = date.today()
     days_until_monday = (7 - today.weekday()) % 7
     if days_until_monday == 0 and today.weekday() != 0:
@@ -31,35 +23,31 @@ def render_sidebar(employee_names: List[str]) -> Tuple[date, Dict[str, dict]]:
     default_monday = today if today.weekday() == 0 else today + timedelta(days=days_until_monday)
 
     week_start = st.sidebar.date_input(
-        "Week Start (Monday)",
+        "Início da Semana (Segunda-feira)",
         value=default_monday,
-        help="Select a Monday to start the week"
+        help="Selecione uma segunda-feira para iniciar a semana"
     )
 
-    # Validate it's a Monday
     if week_start.weekday() != 0:
-        st.sidebar.error("Please select a Monday!")
-        # Adjust to nearest Monday
+        st.sidebar.error("Por favor, selecione uma segunda-feira!")
         days_to_subtract = week_start.weekday()
         week_start = week_start - timedelta(days=days_to_subtract)
-        st.sidebar.info(f"Adjusted to Monday: {week_start}")
+        st.sidebar.info(f"Ajustado para segunda-feira: {week_start.strftime('%d/%m/%Y')}")
 
-    # Block size configuration
-    st.sidebar.subheader("Time Block Settings")
+    st.sidebar.subheader("Configurações de Bloco de Tempo")
     block_size = st.sidebar.selectbox(
-        "Block Size (minutes)",
+        "Tamanho do Bloco (minutos)",
         options=[30, 60],
         index=0,
-        help="Time block granularity"
+        help="Granularidade do bloco de tempo"
     )
 
-    # Scenario selection
-    st.sidebar.subheader("Demo Scenarios")
+    st.sidebar.subheader("Cenários de Demonstração")
     scenario = st.sidebar.selectbox(
-        "Load Scenario",
-        options=["Normal Week", "Ana Vacation (Tue-Thu)", "Multiple Absences"],
+        "Carregar Cenário",
+        options=["Semana Normal", "Férias Ana (Ter-Qui)", "Múltiplas Ausências"],
         index=0,
-        help="Load a pre-configured scenario"
+        help="Carregar um cenário pré-configurado"
     )
 
     settings = {
@@ -76,24 +64,16 @@ def render_absence_editor(
 ) -> Dict[date, Dict[str, dict]]:
     """
     Render absence and override editor in sidebar.
-
-    Args:
-        week_start: Monday of the week
-        employee_names: List of employee names
-
-    Returns:
-        Dict of date -> employee -> {status, start_time, end_time, notes}
     """
-    st.sidebar.subheader("Absences & Overrides")
+    st.sidebar.subheader("Ausências e Substituições")
 
     absences = {}
 
-    # Create expandable sections for each day
     for i in range(7):
         current_date = week_start + timedelta(days=i)
         day_name = current_date.strftime("%A")
 
-        with st.sidebar.expander(f"{day_name} ({current_date.strftime('%m/%d')})"):
+        with st.sidebar.expander(f"{day_name} ({current_date.strftime('%d/%m')})"):
             day_absences = {}
 
             for employee in employee_names:
@@ -109,9 +89,9 @@ def render_absence_editor(
 
                 with col2:
                     override_hours = st.checkbox(
-                        "Override",
+                        "Substituir",
                         key=f"override_{current_date}_{employee}",
-                        help="Override default hours"
+                        help="Substituir horários padrão"
                     )
 
                 start_time = None
@@ -122,14 +102,14 @@ def render_absence_editor(
                     col_s, col_e = st.columns(2)
                     with col_s:
                         start_time = st.time_input(
-                            "Start",
+                            "Entrada",
                             value=time(9, 0),
                             key=f"start_{current_date}_{employee}",
                             label_visibility="visible"
                         )
                     with col_e:
                         end_time = st.time_input(
-                            "End",
+                            "Saída",
                             value=time(17, 0),
                             key=f"end_{current_date}_{employee}",
                             label_visibility="visible"
@@ -137,9 +117,9 @@ def render_absence_editor(
 
                 if status != "Working":
                     notes = st.text_input(
-                        "Notes",
+                        "Observações",
                         key=f"notes_{current_date}_{employee}",
-                        placeholder="Optional notes..."
+                        placeholder="Observações opcionais..."
                     )
 
                 day_absences[employee] = {

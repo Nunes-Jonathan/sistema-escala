@@ -59,7 +59,7 @@ class ExcelExporter:
         ws = wb.create_sheet("WorkHours")
 
         # Headers
-        headers = ["Date", "DayOfWeek", "Employee", "Status", "StartTime", "EndTime", "Notes"]
+        headers = ["Data", "Dia da Semana", "Funcionário", "Status", "Entrada", "Saída", "Observações"]
         ws.append(headers)
 
         # Style headers
@@ -82,7 +82,7 @@ class ExcelExporter:
                 end_time = avail.end_time or default_end
 
                 row = [
-                    day_schedule.date.strftime("%Y-%m-%d"),
+                    day_schedule.date.strftime("%d/%m/%Y"),
                     day_schedule.day_of_week,
                     avail.employee_name,
                     avail.status,
@@ -117,7 +117,7 @@ class ExcelExporter:
         # Create grid for each weekday
         for day_schedule in weekday_schedules:
             # Day header
-            ws.append([f"{day_schedule.day_of_week} - {day_schedule.date.strftime('%Y-%m-%d')}"])
+            ws.append([f"{day_schedule.day_of_week} - {day_schedule.date.strftime('%d/%m/%Y')}"])
             ws[ws.max_row][0].font = Font(bold=True, size=12)
 
             # Column headers: Time, Categories...
@@ -187,7 +187,7 @@ class ExcelExporter:
         # Create grid for each weekend day
         for day_schedule in weekend_schedules:
             # Day header
-            ws.append([f"{day_schedule.day_of_week} - {day_schedule.date.strftime('%Y-%m-%d')}"])
+            ws.append([f"{day_schedule.day_of_week} - {day_schedule.date.strftime('%d/%m/%Y')}"])
             ws[ws.max_row][0].font = Font(bold=True, size=12)
 
             # Column headers
@@ -222,7 +222,7 @@ class ExcelExporter:
             ws.append([])
 
         # Weekend tracking summary
-        ws.append(["Weekend Work Summary"])
+        ws.append(["Resumo de Fins de Semana"])
         ws[ws.max_row][0].font = Font(bold=True, size=14)
         ws.append([])
 
@@ -231,13 +231,13 @@ class ExcelExporter:
         summary = self.weekend_tracker.get_weekend_summary(month)
 
         # Headers
-        ws.append(["Employee", "Weekends Off", "Worked Saturday", "Worked Sunday", "Total Worked", "Compliant"])
+        ws.append(["Funcionário", "Fins de Semana de Folga", "Trabalhou Sábado", "Trabalhou Domingo", "Total Trabalhado", "Conforme"])
         for cell in ws[ws.max_row]:
             cell.font = Font(bold=True)
 
         # Data
         for employee, tracking in sorted(summary.items()):
-            compliant = "Yes" if tracking.is_compliant else "No"
+            compliant = "Sim" if tracking.is_compliant else "Não"
             row = [
                 employee,
                 tracking.weekends_off,

@@ -5,6 +5,23 @@ from typing import List, Tuple
 from core.models import TimeBlock
 
 
+MESES_PT = {
+    1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",
+    5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto",
+    9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+}
+
+DIAS_SEMANA_PT = [
+    "Segunda-feira", "Terça-feira", "Quarta-feira",
+    "Quinta-feira", "Sexta-feira", "Sábado", "Domingo",
+]
+
+
+def formatar_mes_ano(d: date) -> str:
+    """Formata uma data como 'Mês Ano' em português. Ex.: 'Fevereiro 2026'."""
+    return f"{MESES_PT[d.month]} {d.year}"
+
+
 def generate_time_blocks(
     start_hour: int = 8,
     end_hour: int = 24,
@@ -120,11 +137,9 @@ def get_week_dates(monday: date) -> List[Tuple[date, str]]:
         List of (date, day_name) tuples
     """
     days = []
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
     for i in range(7):
         current_date = monday + timedelta(days=i)
-        days.append((current_date, day_names[i]))
+        days.append((current_date, DIAS_SEMANA_PT[current_date.weekday()]))
 
     return days
 
@@ -155,7 +170,6 @@ def get_month_dates(month_start: date) -> List[Tuple[date, str]]:
         List of (date, day_name) tuples for entire month
     """
     days = []
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     # Calculate last day of month
     if month_start.month == 12:
@@ -169,7 +183,7 @@ def get_month_dates(month_start: date) -> List[Tuple[date, str]]:
     # Generate all dates in month
     for i in range(total_days):
         current_date = month_start + timedelta(days=i)
-        day_name = day_names[current_date.weekday()]
+        day_name = DIAS_SEMANA_PT[current_date.weekday()]
         days.append((current_date, day_name))
 
     return days
@@ -200,8 +214,8 @@ def count_weekends_in_month(month_start: date) -> int:
         Number of weekends in the month
     """
     month_dates = get_month_dates(month_start)
-    saturdays = sum(1 for _, day_name in month_dates if day_name == "Saturday")
-    sundays = sum(1 for _, day_name in month_dates if day_name == "Sunday")
+    saturdays = sum(1 for d, _ in month_dates if d.weekday() == 5)
+    sundays = sum(1 for d, _ in month_dates if d.weekday() == 6)
 
     # A weekend is counted if both Sat and Sun are present
     return min(saturdays, sundays)

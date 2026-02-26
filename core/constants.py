@@ -98,7 +98,7 @@ HOUR_ADJUSTMENT_PRIORITY = [
 # Employees whose hours can be adjusted for coverage
 FULLY_FLEXIBLE_EMPLOYEES = {"Anderson", "Gabriel", "Pedro", "Luisa", "Ana", "Lilian"}
 
-# Day names
-WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-WEEKEND_DAYS = ["Saturday", "Sunday"]
+# Day names (pt-BR)
+WEEKDAYS = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira"]
+WEEKEND_DAYS = ["Sábado", "Domingo"]
 ALL_DAYS = WEEKDAYS + WEEKEND_DAYS

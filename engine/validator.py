@@ -41,22 +41,11 @@ class ScheduleValidator:
 
     def _validate_day(self, day_schedule: DaySchedule, result: ValidationResult):
         """Validate a single day schedule."""
-        # Check coverage for each category
         self._validate_coverage(day_schedule, result)
-
-        # Check for double-bookings
         self._validate_no_double_bookings(day_schedule, result)
-
-        # Check category eligibility
         self._validate_category_eligibility(day_schedule, result)
-
-        # Check fixed employee hours
         self._validate_fixed_hours(day_schedule, result)
-
-        # Check weekend rules
         self._validate_weekend_rules(day_schedule, result)
-
-        # Check overlap rules (Salas+Helpdesk)
         self._validate_overlap_rules(day_schedule, result)
 
     def _validate_coverage(self, day_schedule: DaySchedule, result: ValidationResult):
@@ -65,7 +54,6 @@ class ScheduleValidator:
             required_blocks = category.get_required_blocks()
 
             for block in required_blocks:
-                # Find assignments for this category and block
                 assignments = [
                     a for a in day_schedule.assignments
                     if a.category == cat_name and a.time_block == block
@@ -86,25 +74,21 @@ class ScheduleValidator:
             employee_assignments[assignment.employee_name].append(assignment)
 
         for employee, assignments in employee_assignments.items():
-            # Group by time block
             block_assignments: Dict[TimeBlock, List[Assignment]] = defaultdict(list)
 
             for assignment in assignments:
                 block_assignments[assignment.time_block].append(assignment)
 
-            # Check each time block
             for block, block_assigns in block_assignments.items():
                 if len(block_assigns) > 1:
-                    # Check if it's a valid overlap (Salas + Helpdesk)
                     categories = {a.category for a in block_assigns}
 
                     if categories == {"Salas", "Helpdesk"}:
-                        # Valid overlap, check if marked
                         if not all(a.is_overlap for a in block_assigns):
                             result.add_warning(
-                                f"{employee} doing Salas+Helpdesk on "
-                                f"{day_schedule.date.strftime('%Y-%m-%d')} at {block} "
-                                f"(should be marked as overlap)"
+                                f"{employee} fazendo Salas+Helpdesk em "
+                                f"{day_schedule.date.strftime('%d/%m/%Y')} às {block} "
+                                f"(deve ser marcado como sobreposição)"
                             )
                     else:
                         result.add_double_booking(employee, day_schedule.date, block)
@@ -121,7 +105,7 @@ class ScheduleValidator:
 
             if employee not in EMPLOYEE_ALLOWED_CATEGORIES:
                 result.add_violation(
-                    f"{employee} not found in eligibility rules for {category}"
+                    f"{employee} não encontrado nas regras de elegibilidade para {category}"
                 )
                 continue
 
@@ -129,7 +113,7 @@ class ScheduleValidator:
 
             if category not in allowed:
                 result.add_violation(
-                    f"{employee} assigned to {category} but only allowed: {allowed}"
+                    f"{employee} atribuído a {category} mas permitido apenas em: {allowed}"
                 )
 
     def _validate_fixed_hours(self, day_schedule: DaySchedule, result: ValidationResult):
@@ -140,23 +124,18 @@ class ScheduleValidator:
             if employee not in FIXED_EMPLOYEES:
                 continue
 
-            # Get employee's default hours
             default_start, default_end = EMPLOYEE_DEFAULT_HOURS[employee]
-
-            # Check if assignment block is within default hours
             block = assignment.time_block
 
-            # Simple check: block start should be >= default start
-            # and block end should be <= default end (or handle midnight)
             if not self._time_in_employee_hours(
                 block.start_time,
                 default_start,
                 default_end
             ):
                 result.add_violation(
-                    f"Fixed employee {employee} assigned outside hours "
-                    f"({default_start}-{default_end}) at {block} on "
-                    f"{day_schedule.date.strftime('%Y-%m-%d')}"
+                    f"Funcionário fixo {employee} atribuído fora do horário "
+                    f"({default_start}-{default_end}) em {block} no dia "
+                    f"{day_schedule.date.strftime('%d/%m/%Y')}"
                 )
 
     def _time_in_employee_hours(
@@ -181,13 +160,12 @@ class ScheduleValidator:
 
             if employee in WEEKEND_NEVER_WORK:
                 result.add_violation(
-                    f"{employee} should never work weekends but assigned on "
-                    f"{day_schedule.date.strftime('%Y-%m-%d')}"
+                    f"{employee} não deve trabalhar nos fins de semana mas foi atribuído em "
+                    f"{day_schedule.date.strftime('%d/%m/%Y')}"
                 )
 
     def _validate_overlap_rules(self, day_schedule: DaySchedule, result: ValidationResult):
         """Validate Salas+Helpdesk overlap only happens when needed."""
-        # Find all overlaps
         employee_assignments: Dict[str, List[Assignment]] = defaultdict(list)
 
         for assignment in day_schedule.assignments:
@@ -196,9 +174,8 @@ class ScheduleValidator:
 
         for employee, overlaps in employee_assignments.items():
             if overlaps:
-                # Overlap should only happen if it's a fallback
                 if not all(a.is_fallback for a in overlaps):
                     result.add_warning(
-                        f"{employee} has Salas+Helpdesk overlap on "
-                        f"{day_schedule.date.strftime('%Y-%m-%d')} but not marked as fallback"
+                        f"{employee} tem sobreposição Salas+Helpdesk em "
+                        f"{day_schedule.date.strftime('%d/%m/%Y')} mas não marcado como substituto"
                     )

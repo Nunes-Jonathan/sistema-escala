@@ -1,9 +1,9 @@
 """
-Sistema de Escala v2.0 - Monthly Work Schedule Management System
+Sistema de Escala v2.0 - Sistema de Gestão de Escalas Mensais
 
-A desktop-app feel scheduling tool built with Python + Streamlit.
-Generates monthly work-hours sheets per category, supports editing,
-validation, and Excel/CSV export.
+Ferramenta de agendamento com visual de aplicativo desktop construída com Python + Streamlit.
+Gera planilhas mensais de horas de trabalho por categoria, suporta edição,
+validação e exportação para Excel/CSV.
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ import json
 # Core imports
 from core.models import Employee, Category, EmployeeAvailability, WorkStatus, MonthSchedule, VacationPeriod
 from core.constants import EMPLOYEE_DEFAULT_HOURS
-from core.utils import get_first_of_month
+from core.utils import get_first_of_month, formatar_mes_ano
 
 # Engine imports
 from engine.scheduler import Scheduler
@@ -82,7 +82,7 @@ def load_vacations():
 
             return vacation_periods
         except Exception as e:
-            st.sidebar.warning(f"Could not load vacation data: {e}")
+            st.sidebar.warning(f"Não foi possível carregar os dados de férias: {e}")
             return []
     return []
 
@@ -93,45 +93,43 @@ def main():
 
     # Title
     st.title("📅 Sistema de Escala v2.0")
-    st.markdown("**Monthly Work Schedule Management System**")
+    st.markdown("**Sistema de Gestão de Escalas Mensais**")
     st.markdown("---")
 
     # Sidebar - Month selection
-    st.sidebar.title("Schedule Configuration")
-    st.sidebar.subheader("Month Selection")
+    st.sidebar.title("Configuração da Escala")
+    st.sidebar.subheader("Seleção do Mês")
 
-    # Get current month
     today = date.today()
     default_month_start = get_first_of_month(today)
 
     month_date = st.sidebar.date_input(
-        "Select Month",
+        "Selecionar Mês",
         value=default_month_start,
-        help="Select any date in the month to schedule"
+        help="Selecione qualquer data do mês para escalar"
     )
 
-    # Convert to first of month
     month_start = get_first_of_month(month_date)
 
-    st.sidebar.info(f"📅 Scheduling for: **{month_start.strftime('%B %Y')}**")
+    st.sidebar.info(f"📅 Escalando para: **{formatar_mes_ano(month_start)}**")
 
     # Load vacations
-    st.sidebar.subheader("Vacation Periods")
+    st.sidebar.subheader("Períodos de Férias")
     vacation_count = len(st.session_state.vacation_periods)
 
-    if st.sidebar.button("🔄 Reload Vacations from File"):
+    if st.sidebar.button("🔄 Recarregar Férias do Arquivo"):
         st.session_state.vacation_periods = load_vacations()
-        st.sidebar.success(f"Loaded {len(st.session_state.vacation_periods)} vacation periods")
+        st.sidebar.success(f"{len(st.session_state.vacation_periods)} períodos de férias carregados")
 
-    st.sidebar.info(f"**{vacation_count}** vacation periods loaded")
-    st.sidebar.caption("Manage vacations in the Vacation Management page →")
+    st.sidebar.info(f"**{vacation_count}** período(s) de férias carregado(s)")
+    st.sidebar.caption("Gerencie férias na página de Gestão de Férias →")
 
     # Main content area
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        if st.button("🔄 Generate Schedule", type="primary", use_container_width=True):
-            with st.spinner("Generating monthly schedule..."):
+        if st.button("🔄 Gerar Escala", type="primary", use_container_width=True):
+            with st.spinner("Gerando escala mensal..."):
                 # Use vacation periods already in session state (set via Vacation Management page).
                 # Do NOT reload from file here — that would discard unsaved in-memory vacations.
                 vacation_periods = st.session_state.vacation_periods
@@ -143,48 +141,48 @@ def main():
                 )
                 st.session_state.month_schedule = month_schedule
 
-                st.success(f"✅ Schedule generated for {month_start.strftime('%B %Y')}!")
+                st.success(f"✅ Escala gerada para {formatar_mes_ano(month_start)}!")
                 st.rerun()
 
     with col2:
-        if st.button("✅ Validate Schedule", use_container_width=True):
+        if st.button("✅ Validar Escala", use_container_width=True):
             if st.session_state.month_schedule:
-                with st.spinner("Validating..."):
+                with st.spinner("Validando..."):
                     validation = st.session_state.scheduler.validate_month_schedule(
                         st.session_state.month_schedule
                     )
                     st.session_state.validation_result = validation
                     st.rerun()
             else:
-                st.warning("Generate a schedule first!")
+                st.warning("Gere uma escala primeiro!")
 
     with col3:
-        if st.button("📊 Export Excel", use_container_width=True):
+        if st.button("📊 Exportar Excel", use_container_width=True):
             if st.session_state.month_schedule:
-                with st.spinner("Generating Excel..."):
+                with st.spinner("Gerando Excel..."):
                     temp_dir = tempfile.mkdtemp()
-                    output_path = Path(temp_dir) / f"schedule_{month_start.strftime('%Y%m')}.xlsx"
+                    output_path = Path(temp_dir) / f"escala_{month_start.strftime('%Y%m')}.xlsx"
 
                     exporter = ExcelExporter(st.session_state.scheduler.weekend_tracker)
                     exporter.export_schedule(st.session_state.month_schedule, str(output_path))
 
                     with open(output_path, "rb") as f:
                         st.download_button(
-                            label="⬇️ Download Excel",
+                            label="⬇️ Baixar Excel",
                             data=f,
-                            file_name=f"schedule_{month_start.strftime('%Y%m')}.xlsx",
+                            file_name=f"escala_{month_start.strftime('%Y%m')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True
                         )
 
-                    st.success("Excel file ready!")
+                    st.success("Arquivo Excel pronto!")
             else:
-                st.warning("Generate a schedule first!")
+                st.warning("Gere uma escala primeiro!")
 
     with col4:
-        if st.button("📄 Export CSV", use_container_width=True):
+        if st.button("📄 Exportar CSV", use_container_width=True):
             if st.session_state.month_schedule:
-                with st.spinner("Generating CSV..."):
+                with st.spinner("Gerando CSV..."):
                     temp_dir = tempfile.mkdtemp()
 
                     exporter = CSVExporter(st.session_state.scheduler.weekend_tracker)
@@ -192,58 +190,56 @@ def main():
 
                     with open(zip_path, "rb") as f:
                         st.download_button(
-                            label="⬇️ Download CSV (Zip)",
+                            label="⬇️ Baixar CSV (Zip)",
                             data=f,
-                            file_name=f"schedule_{month_start.strftime('%Y%m')}.zip",
+                            file_name=f"escala_{month_start.strftime('%Y%m')}.zip",
                             mime="application/zip",
                             use_container_width=True
                         )
 
-                    st.success("CSV files ready!")
+                    st.success("Arquivos CSV prontos!")
             else:
-                st.warning("Generate a schedule first!")
+                st.warning("Gere uma escala primeiro!")
 
     st.markdown("---")
 
     # Display validation results if available
     if st.session_state.validation_result:
-        with st.expander("🔍 Validation Results", expanded=False):
+        with st.expander("🔍 Resultados da Validação", expanded=False):
             render_validation_results(st.session_state.validation_result)
 
     # Display schedule if available
     if st.session_state.month_schedule:
-        st.markdown(f"## 📋 Monthly Schedule - {month_start.strftime('%B %Y')}")
+        st.markdown(f"## 📋 Escala Mensal - {formatar_mes_ano(month_start)}")
 
-        # Tabs for different views
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📅 Timeline View",
-            "👥 Employee Schedules",
-            "📊 Coverage Heatmap",
-            "🏖️ Weekend Summary",
-            "ℹ️ Schedule Info"
+            "📅 Linha do Tempo",
+            "👥 Escalas dos Funcionários",
+            "📊 Mapa de Cobertura",
+            "🏖️ Resumo dos Fins de Semana",
+            "ℹ️ Informações da Escala"
         ])
 
         with tab1:
-            st.subheader("Timeline View")
-            st.caption("Select a date to view the timeline for that day")
+            st.subheader("Linha do Tempo")
+            st.caption("Selecione uma data para ver a linha do tempo daquele dia")
 
-            # Date selector
             month_dates = [d.date for d in st.session_state.month_schedule.days]
             selected_date = st.selectbox(
-                "Select Date",
+                "Selecionar Data",
                 options=month_dates,
-                format_func=lambda d: d.strftime("%A, %B %d, %Y")
+                format_func=lambda d: d.strftime("%A, %d de %B de %Y")
             )
 
             if selected_date:
                 render_monthly_timeline(st.session_state.month_schedule, selected_date)
 
         with tab2:
-            st.subheader("Employee Schedules")
+            st.subheader("Escalas dos Funcionários")
 
             employee_names = [emp.name for emp in st.session_state.employees]
             selected_employee = st.selectbox(
-                "Select Employee",
+                "Selecionar Funcionário",
                 options=employee_names
             )
 
@@ -258,24 +254,23 @@ def main():
             render_weekend_summary(weekend_summary)
 
         with tab5:
-            st.subheader("Schedule Information")
+            st.subheader("Informações da Escala")
 
             col1, col2, col3 = st.columns(3)
 
             with col1:
                 total_days = len(st.session_state.month_schedule.days)
-                st.metric("Total Days", total_days)
+                st.metric("Total de Dias", total_days)
 
             with col2:
                 total_assignments = sum(len(day.assignments) for day in st.session_state.month_schedule.days)
-                st.metric("Total Assignments", total_assignments)
+                st.metric("Total de Atribuições", total_assignments)
 
             with col3:
                 vacation_count = len(st.session_state.vacation_periods)
-                st.metric("Vacation Periods", vacation_count)
+                st.metric("Períodos de Férias", vacation_count)
 
-            # Day-by-day summary
-            st.markdown("### Day-by-Day Summary")
+            st.markdown("### Resumo Dia a Dia")
 
             summary_data = []
             for day in st.session_state.month_schedule.days:
@@ -285,55 +280,54 @@ def main():
                 )
 
                 summary_data.append({
-                    "Date": day.date.strftime("%Y-%m-%d"),
-                    "Day": day.day_of_week,
-                    "Working Employees": working_count,
-                    "Total Assignments": len(day.assignments)
+                    "Data": day.date.strftime("%d/%m/%Y"),
+                    "Dia": day.day_of_week,
+                    "Funcionários Trabalhando": working_count,
+                    "Total de Atribuições": len(day.assignments)
                 })
 
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, hide_index=True, use_container_width=True, height=400)
 
     else:
-        # Instructions
-        st.info("👈 Select a month and click 'Generate Schedule' to begin.")
+        st.info("👈 Selecione um mês e clique em 'Gerar Escala' para começar.")
 
-        with st.expander("ℹ️ How to Use"):
+        with st.expander("ℹ️ Como Usar"):
             st.markdown("""
-            ### Getting Started
+            ### Primeiros Passos
 
-            1. **Select Month**: Choose any date in the month you want to schedule
-            2. **Manage Vacations**: Go to Vacation Management page to add employee vacations
-            3. **Generate**: Click "Generate Schedule" to create the monthly schedule
-            4. **Review**: Use the Timeline View to see daily schedules
-            5. **Validate**: Check for coverage gaps and rule violations
-            6. **Export**: Download as Excel (.xlsx) or CSV files
+            1. **Selecionar Mês**: Escolha qualquer data do mês que deseja escalar
+            2. **Gerenciar Férias**: Acesse a página de Gestão de Férias para adicionar férias dos funcionários
+            3. **Gerar**: Clique em "Gerar Escala" para criar a escala mensal
+            4. **Revisar**: Use a Linha do Tempo para visualizar as escalas diárias
+            5. **Validar**: Verifique lacunas de cobertura e violações de regras
+            6. **Exportar**: Baixe como Excel (.xlsx) ou arquivos CSV
 
-            ### New Features in v2.0
+            ### Novidades na v2.0
 
-            - **Monthly Scheduling**: Full calendar month scheduling (28-31 days)
-            - **Auto Hour Adjustment**: System automatically adjusts flexible employee hours to ensure coverage
-            - **HD Supervisor**: Anderson assigned to HD Supervisor role when not covering for others
-            - **Timeline View**: Visual bar-chart style view of employee schedules
-            - **Vacation Management**: Dedicated page for managing employee vacations
-            - **Coverage Enforcement**: All required coverage windows are guaranteed to be filled
+            - **Escala Mensal**: Agendamento para o mês calendário completo (28 a 31 dias)
+            - **Ajuste Automático de Horas**: O sistema ajusta automaticamente as horas dos funcionários flexíveis para garantir a cobertura
+            - **HD Supervisor**: Anderson atribuído à função de HD Supervisor quando não está cobrindo outros
+            - **Linha do Tempo**: Visualização em estilo gráfico de barras das escalas dos funcionários
+            - **Gestão de Férias**: Página dedicada ao gerenciamento de férias dos funcionários
+            - **Garantia de Cobertura**: Todas as janelas de cobertura necessárias são garantidamente preenchidas
 
-            ### Priority Rules
+            ### Regras de Prioridade
 
-            When coverage is needed, the system adjusts hours in this order:
-            1. **Anderson** - First priority (morning coverage)
-            2. **Gabriel** - Second priority (afternoon/night)
-            3. **Pedro** - Third priority (afternoon/night)
-            4. **Other flexible employees** - As needed
+            Quando a cobertura é necessária, o sistema ajusta as horas nesta ordem:
+            1. **Anderson** — Primeira prioridade (cobertura matutina)
+            2. **Gabriel** — Segunda prioridade (tarde/noite)
+            3. **Pedro** — Terceira prioridade (tarde/noite)
+            4. **Outros funcionários flexíveis** — Conforme necessário
 
-            **Note**: Fixed employees (Cesar, Roberto, Oscar, Amanda) never change hours.
+            **Observação**: Funcionários fixos (Cesar, Roberto, Oscar, Amanda) nunca alteram seus horários.
             """)
 
 # Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>"
-    "Sistema de Escala v2.0 | Built with Streamlit + Python | Monthly Scheduling Engine"
+    "Sistema de Escala v2.0 | Desenvolvido com Streamlit + Python | Motor de Escala Mensal"
     "</div>",
     unsafe_allow_html=True
 )
