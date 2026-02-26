@@ -58,7 +58,8 @@ def initialize_session_state():
         st.session_state.validation_result = None
 
     if "vacation_periods" not in st.session_state:
-        st.session_state.vacation_periods = []
+        # Try to restore from file on first load; fall back to empty list
+        st.session_state.vacation_periods = load_vacations()
 
 
 def load_vacations():
@@ -131,9 +132,9 @@ def main():
     with col1:
         if st.button("🔄 Generate Schedule", type="primary", use_container_width=True):
             with st.spinner("Generating monthly schedule..."):
-                # Load vacations
-                vacation_periods = load_vacations()
-                st.session_state.vacation_periods = vacation_periods
+                # Use vacation periods already in session state (set via Vacation Management page).
+                # Do NOT reload from file here — that would discard unsaved in-memory vacations.
+                vacation_periods = st.session_state.vacation_periods
 
                 # Generate schedule
                 month_schedule = st.session_state.scheduler.generate_month_schedule(
