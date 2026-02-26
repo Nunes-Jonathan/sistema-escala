@@ -34,7 +34,11 @@ class WeekendPlanner:
             if emp.name not in WEEKEND_NEVER_WORK
         ]
 
-    def plan_month_weekends(self, month_start: date) -> WeekendPlan:
+    def plan_month_weekends(
+        self,
+        month_start: date,
+        previous_plan: Optional["WeekendPlan"] = None
+    ) -> WeekendPlan:
         """
         Plan weekend assignments for a month.
 
@@ -43,9 +47,12 @@ class WeekendPlanner:
         - Each employee works 2 weekends (1 day each = 2 days total)
         - Anderson always works Saturday only
         - Give compensatory Friday/Monday off when needed
+        - No employee works more than 2 consecutive weekends
 
         Args:
             month_start: First day of month
+            previous_plan: Optional plan from the previous month for cross-month
+                           consecutive-weekend checking.
 
         Returns:
             WeekendPlan with assignments
@@ -58,18 +65,86 @@ class WeekendPlanner:
         # Plan assignments
         if len(weekends) == 4:
             # Standard month with 4 weekends
-            self._plan_four_weekends(weekends, plan)
+            self._plan_four_weekends(weekends, plan, previous_plan)
         elif len(weekends) == 5:
             # Month with 5 weekends
-            self._plan_five_weekends(weekends, plan)
+            self._plan_five_weekends(weekends, plan, previous_plan)
         else:
             # Fallback for unusual cases
-            self._plan_generic(weekends, plan)
+            self._plan_generic(weekends, plan, previous_plan)
 
         # Assign compensatory days off
         self._assign_compensatory_days(month_start, plan)
 
         return plan
+
+    def _get_trailing_consecutive_weekends(
+        self, prev_plan: "WeekendPlan"
+    ) -> Dict[str, int]:
+        """
+        For each employee, count how many consecutive weekends they worked
+        at the END of the previous month's plan.
+
+        Used so the sequential-weekend constraint spans month boundaries.
+        """
+        trailing: Dict[str, int] = defaultdict(int)
+
+        sat_dates = sorted(prev_plan.saturday_assignments.keys())
+        sun_dates = sorted(prev_plan.sunday_assignments.keys())
+
+        for emp in self.weekend_workers:
+            count = 0
+            n = len(sat_dates)
+            for i in range(n - 1, -1, -1):
+                sat = sat_dates[i]
+                sun = sun_dates[i] if i < len(sun_dates) else None
+
+                worked = False
+                if emp in prev_plan.saturday_assignments.get(sat, {}).values():
+                    worked = True
+                if sun and emp in prev_plan.sunday_assignments.get(sun, {}).values():
+                    worked = True
+
+                if worked:
+                    count += 1
+                else:
+                    break
+
+            trailing[emp] = count
+
+        return trailing
+
+    def _would_violate_sequential(
+        self,
+        employee: str,
+        weekend_idx: int,
+        employee_weekend_indices: Dict[str, set],
+        prev_trailing: Dict[str, int],
+    ) -> bool:
+        """
+        Return True if assigning *employee* to *weekend_idx* would result in
+        3 or more consecutive weekends worked.
+
+        Args:
+            employee: Employee name
+            weekend_idx: 0-based index of the weekend within this month
+            employee_weekend_indices: Weekends (by index) already assigned this month
+            prev_trailing: Consecutive trailing weekends from previous month
+        """
+        worked = employee_weekend_indices.get(employee, set())
+
+        # Count consecutive weekends immediately preceding weekend_idx
+        consecutive_before = 0
+        check = weekend_idx - 1
+        while check >= 0 and check in worked:
+            consecutive_before += 1
+            check -= 1
+
+        # If we exhausted this month's weekends, add prev-month trailing count
+        if check < 0:
+            consecutive_before += prev_trailing.get(employee, 0)
+
+        return consecutive_before >= 2
 
     def _get_weekends_in_month(self, month_start: date) -> List[Tuple[date, date]]:
         """Get list of (Saturday, Sunday) tuples for the month.
@@ -96,7 +171,12 @@ class WeekendPlanner:
 
         return weekends
 
-    def _plan_four_weekends(self, weekends: List[Tuple[date, date]], plan: WeekendPlan):
+    def _plan_four_weekends(
+        self,
+        weekends: List[Tuple[date, date]],
+        plan: WeekendPlan,
+        previous_plan: Optional["WeekendPlan"] = None,
+    ):
         """
         Plan for standard 4-weekend month with morning/evening shifts.
 
@@ -106,6 +186,7 @@ class WeekendPlanner:
         - Anderson: 2 Saturday morning shifts (08:00-16:00, fixed)
         - Other 6 employees: distribute across remaining 14 shifts
         - Some employees work 2 shifts, some work 3 (with compensatory days)
+        - No employee works more than 2 consecutive weekends
 
         Shifts:
         - Morning: 08:00-16:00
@@ -114,6 +195,13 @@ class WeekendPlanner:
         saturday_dates = [w[0] for w in weekends]
         sunday_dates = [w[1] for w in weekends]
 
+        # Build a mapping: date -> weekend index (0-based)
+        weekend_idx_map: Dict[date, int] = {}
+        for idx, (sat, sun) in enumerate(weekends):
+            weekend_idx_map[sat] = idx
+            if sun:
+                weekend_idx_map[sun] = idx
+
         # Initialize all weekend days with empty shift assignments
         for sat in saturday_dates:
             plan.saturday_assignments[sat] = {"morning": None, "evening": None}
@@ -129,8 +217,19 @@ class WeekendPlanner:
         # Remove Anderson from pool
         other_workers = [w for w in self.weekend_workers if w != "Anderson"]
 
-        # Track shifts per employee
-        employee_shifts = defaultdict(int)
+        # Track shifts per employee and which weekend indices each employee works
+        employee_shifts: Dict[str, int] = defaultdict(int)
+        employee_weekend_indices: Dict[str, set] = defaultdict(set)
+
+        # Pre-populate Anderson's weekend indices
+        for sat in anderson_saturdays:
+            employee_weekend_indices["Anderson"].add(weekend_idx_map[sat])
+
+        # Collect trailing consecutive weekends from previous month (for cross-month check)
+        prev_trailing = (
+            self._get_trailing_consecutive_weekends(previous_plan)
+            if previous_plan else {}
+        )
 
         # Collect all unfilled shifts — skip cross-month Saturdays to avoid wasted slots
         unfilled_shifts = []
@@ -150,7 +249,8 @@ class WeekendPlanner:
         # Shuffle for randomness
         random.shuffle(unfilled_shifts)
 
-        # Fill shifts — always use a different employee for morning vs. evening on the same day
+        # Fill shifts — always use a different employee for morning vs. evening on the same day,
+        # and never assign a 3rd consecutive weekend to any employee.
         for shift_date, shift_type in unfilled_shifts:
             other_type = "evening" if shift_type == "morning" else "morning"
             day_map = (
@@ -158,21 +258,45 @@ class WeekendPlanner:
                 if shift_date.weekday() == 5
                 else plan.sunday_assignments[shift_date]
             )
+            weekend_idx = weekend_idx_map.get(shift_date, 0)
 
             available = sorted(
                 [(emp, employee_shifts[emp]) for emp in other_workers],
                 key=lambda x: x[1]
             )
 
+            assigned = False
+            # First pass: respect the sequential-weekend constraint
             for emp, _ in available:
-                # Skip if this employee already covers the other shift today
                 if day_map.get(other_type) == emp:
+                    continue
+                if self._would_violate_sequential(
+                    emp, weekend_idx, employee_weekend_indices, prev_trailing
+                ):
                     continue
                 day_map[shift_type] = emp
                 employee_shifts[emp] += 1
+                employee_weekend_indices[emp].add(weekend_idx)
+                assigned = True
                 break
 
-    def _plan_five_weekends(self, weekends: List[Tuple[date, date]], plan: WeekendPlan):
+            # Fallback: if no candidate passes the constraint, pick the least-loaded
+            # available employee (ignoring the sequential constraint) to avoid gaps.
+            if not assigned:
+                for emp, _ in available:
+                    if day_map.get(other_type) == emp:
+                        continue
+                    day_map[shift_type] = emp
+                    employee_shifts[emp] += 1
+                    employee_weekend_indices[emp].add(weekend_idx)
+                    break
+
+    def _plan_five_weekends(
+        self,
+        weekends: List[Tuple[date, date]],
+        plan: WeekendPlan,
+        previous_plan: Optional["WeekendPlan"] = None,
+    ):
         """
         Plan for 5-weekend month with morning/evening shifts.
 
@@ -181,9 +305,17 @@ class WeekendPlanner:
         - Anderson: 2 Saturday morning shifts
         - Other 6 employees: cover 18 shifts
         - Average: 3 shifts per employee
+        - No employee works more than 2 consecutive weekends
         """
         saturday_dates = [w[0] for w in weekends]
         sunday_dates = [w[1] for w in weekends]
+
+        # Build a mapping: date -> weekend index (0-based)
+        weekend_idx_map: Dict[date, int] = {}
+        for idx, (sat, sun) in enumerate(weekends):
+            weekend_idx_map[sat] = idx
+            if sun:
+                weekend_idx_map[sun] = idx
 
         # Initialize all weekend days with empty shift assignments
         for sat in saturday_dates:
@@ -200,8 +332,19 @@ class WeekendPlanner:
         # Remove Anderson from pool
         other_workers = [w for w in self.weekend_workers if w != "Anderson"]
 
-        # Track shifts per employee
-        employee_shifts = defaultdict(int)
+        # Track shifts per employee and which weekend indices each employee works
+        employee_shifts: Dict[str, int] = defaultdict(int)
+        employee_weekend_indices: Dict[str, set] = defaultdict(set)
+
+        # Pre-populate Anderson's weekend indices
+        for sat in anderson_saturdays:
+            employee_weekend_indices["Anderson"].add(weekend_idx_map[sat])
+
+        # Collect trailing consecutive weekends from previous month (for cross-month check)
+        prev_trailing = (
+            self._get_trailing_consecutive_weekends(previous_plan)
+            if previous_plan else {}
+        )
 
         # Collect all unfilled shifts — skip cross-month Saturdays to avoid wasted slots
         unfilled_shifts = []
@@ -221,7 +364,8 @@ class WeekendPlanner:
         # Shuffle for randomness
         random.shuffle(unfilled_shifts)
 
-        # Fill shifts — always use a different employee for morning vs. evening on the same day
+        # Fill shifts — always use a different employee for morning vs. evening on the same day,
+        # and never assign a 3rd consecutive weekend to any employee.
         for shift_date, shift_type in unfilled_shifts:
             other_type = "evening" if shift_type == "morning" else "morning"
             day_map = (
@@ -229,23 +373,47 @@ class WeekendPlanner:
                 if shift_date.weekday() == 5
                 else plan.sunday_assignments[shift_date]
             )
+            weekend_idx = weekend_idx_map.get(shift_date, 0)
 
             available = sorted(
                 [(emp, employee_shifts[emp]) for emp in other_workers],
                 key=lambda x: x[1]
             )
 
+            assigned = False
+            # First pass: respect the sequential-weekend constraint
             for emp, _ in available:
-                # Skip if this employee already covers the other shift today
                 if day_map.get(other_type) == emp:
+                    continue
+                if self._would_violate_sequential(
+                    emp, weekend_idx, employee_weekend_indices, prev_trailing
+                ):
                     continue
                 day_map[shift_type] = emp
                 employee_shifts[emp] += 1
+                employee_weekend_indices[emp].add(weekend_idx)
+                assigned = True
                 break
 
-    def _plan_generic(self, weekends: List[Tuple[date, date]], plan: WeekendPlan):
+            # Fallback: if no candidate passes the constraint, pick the least-loaded
+            # available employee (ignoring the sequential constraint) to avoid gaps.
+            if not assigned:
+                for emp, _ in available:
+                    if day_map.get(other_type) == emp:
+                        continue
+                    day_map[shift_type] = emp
+                    employee_shifts[emp] += 1
+                    employee_weekend_indices[emp].add(weekend_idx)
+                    break
+
+    def _plan_generic(
+        self,
+        weekends: List[Tuple[date, date]],
+        plan: WeekendPlan,
+        previous_plan: Optional["WeekendPlan"] = None,
+    ):
         """Fallback planning for unusual cases."""
-        self._plan_four_weekends(weekends, plan)
+        self._plan_four_weekends(weekends, plan, previous_plan)
 
     def _assign_compensatory_days(self, month_start: date, plan: WeekendPlan):
         """

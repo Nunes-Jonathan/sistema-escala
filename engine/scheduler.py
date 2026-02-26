@@ -31,6 +31,7 @@ class Scheduler:
         self.weekend_planner = WeekendPlanner(employees)
         self.vacation_periods: List[VacationPeriod] = []
         self.current_weekend_plan: Optional[WeekendPlan] = None
+        self.previous_weekend_plan: Optional[WeekendPlan] = None
 
     def generate_week_schedule(
         self,
@@ -202,8 +203,12 @@ class Scheduler:
         if vacation_periods:
             self.vacation_periods = vacation_periods
 
-        # Plan weekend assignments for the month
-        self.current_weekend_plan = self.weekend_planner.plan_month_weekends(month_start)
+        # Plan weekend assignments for the month, passing the previous month's plan
+        # so the consecutive-weekend constraint can be enforced across month boundaries.
+        self.previous_weekend_plan = self.current_weekend_plan
+        self.current_weekend_plan = self.weekend_planner.plan_month_weekends(
+            month_start, previous_plan=self.previous_weekend_plan
+        )
 
         month_schedule = MonthSchedule(month_start=month_start, days=[])
 
